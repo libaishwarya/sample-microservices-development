@@ -79,6 +79,7 @@ def user_update(id):
             cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, id))
             conn.commit()
             conn.close()
+            
             return jsonify({"message": "User updated successfully"}), 200
         except Exception :
             conn.rollback()
