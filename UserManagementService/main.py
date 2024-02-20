@@ -5,6 +5,7 @@ import bcrypt
 import uuid
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'my_name'
 
 app.secret_key = os.environ.get('SECRET_KEY')
 
@@ -79,7 +80,6 @@ def user_update(id):
             cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, id))
             conn.commit()
             conn.close()
-            
             return jsonify({"message": "User updated successfully"}), 200
         except Exception :
             conn.rollback()
