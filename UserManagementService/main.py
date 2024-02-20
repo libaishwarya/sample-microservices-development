@@ -5,7 +5,8 @@ import bcrypt
 import uuid
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'my_name'
+
+app.secret_key = os.environ.get('SECRET_KEY')
 
 db_config = {
     'host': os.environ.get('DATABASE_HOST', 'localhost'),
@@ -19,10 +20,6 @@ def get_connection():
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-@app.route("/", methods=['GET'])
-def main():
-    return "Welcome to Home page"
 
 @app.route("/users", methods=['POST'])
 def create_users():
