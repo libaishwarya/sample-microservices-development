@@ -5,7 +5,8 @@ import bcrypt
 import uuid
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'my_name'
+
+app.secret_key = os.environ.get('SECRET_KEY')
 
 app.secret_key = os.environ.get('SECRET_KEY')
 
