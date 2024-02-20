@@ -5,6 +5,7 @@ import bcrypt
 import uuid
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'my_name'
 
 db_config = {
     'host': os.environ.get('DATABASE_HOST', 'localhost'),
@@ -24,12 +25,11 @@ def main():
     return "Welcome to Home page"
 
 @app.route("/users", methods=['POST'])
-def create():
+def create_users():
     data = request.json
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
-    
     try:
         hashed_password = hash_password(password)
         user_id = str(uuid.uuid4())
@@ -42,12 +42,12 @@ def create():
         conn.close()
         
         return jsonify({"id": user_id}), 201
-    except Exception as e:
+    except Exception :
         conn.rollback()
-        return jsonify(error=str(e)), 500
+        return 500
 
-@app.route("/users/<string:id>", methods=['GET','PUT','DELETE'])
-def user(id):
+@app.route("/users/<string:id>", methods=['GET'])
+def user_view(id):
     if request.method == 'GET':
         try:
             conn = get_connection()
@@ -56,7 +56,6 @@ def user(id):
             cursor.execute('SELECT * from user_management where id = %s', (id,))
             user = cursor.fetchone()
             conn.close()
-            
             if user:
                 user_dict = {
                     "id": user[0],
@@ -66,29 +65,31 @@ def user(id):
                 return jsonify(user_dict), 200
             else:
                 return jsonify({"error": "User not found"}), 404
-        except Exception as e:
+        except Exception :
             conn.rollback()
-            return jsonify(error=str(e)), 500
-    
-    elif request.method == 'PUT':
-        data = request.json
-        name = data.get('name')
-        email = data.get('email')
-        
+            return 500
+
+@app.route("/users/<string:id>", methods=['PUT'])
+def user_update(id):
+    if request.method == 'PUT':
         try:
+            data = request.json
+            name = data.get('name')
+            email = data.get('email')
             conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction()
             cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, id))
             conn.commit()
             conn.close()
-            
             return jsonify({"message": "User updated successfully"}), 200
-        except Exception as e:
+        except Exception :
             conn.rollback()
-            return jsonify(error=str(e)), 500
-
-    elif request.method == 'DELETE':
+            return 500
+    
+@app.route("/users/<string:id>", methods=['DELETE'])
+def user_delete(id):
+    if request.method == 'DELETE':
         try:
             conn = get_connection()
             cursor = conn.cursor()
@@ -96,11 +97,10 @@ def user(id):
             cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
             conn.commit()
             conn.close()
-            
             return jsonify({"message": "User deleted successfully"}), 200
-        except Exception as e:
+        except Exception :
             conn.rollback()
-            return jsonify(error=str(e)), 500
+            return 500
 
 if __name__ == '__main__':
     app.run(debug=True)
