@@ -3,9 +3,20 @@ import os
 import mysql.connector
 import bcrypt
 import uuid
+import datetime
+import jwt
+import hashlib
+
+
+def generate_token(id):
+    payload = {
+        'user_id' : id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
+    }
+    token = jwt.encode(payload, 'SECRET_KEY', algorithm='HS256')
+    return token
 
 app = Flask(__name__)
-
 app.secret_key = os.environ.get('SECRET_KEY')
 
 app.secret_key = os.environ.get('SECRET_KEY')
@@ -21,10 +32,13 @@ def get_connection():
     return mysql.connector.connect(**db_config)
 
 def hash_password(password):
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return hashlib.sha256(password.encode()).hexdigest()
 
-@app.route("/users", methods=['POST'])
-def create_users():
+def check_password(password, hashed_password):
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
+
+@app.route("/register", methods=['POST'])
+def user_register():
     data = request.json
     name = data.get('name')
     email = data.get('email')
@@ -44,6 +58,27 @@ def create_users():
     except Exception :
         conn.rollback()
         return 500
+    
+@app.route("/login", methods=['POST'])
+def login():
+    data = request.json
+    email = data['email']
+    password = data['password']
+    if not data or 'email' not in data or 'password' not in data:
+        return jsonify({'message': 'Invalid credentials'}), 401
+    if data:
+            conn = get_connection()
+            cursor = conn.cursor()
+            conn.start_transaction()
+            cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
+            user = cursor.fetchone()
+            conn.commit()
+            conn.close()
+            if  user is None:
+                return "",401
+            token = generate_token(user[0])
+            return jsonify({'token': token, 'id': user[0]}), 200
+    return 500
 
 @app.route("/users/<string:id>", methods=['GET'])
 def user_view(id):
