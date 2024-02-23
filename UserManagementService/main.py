@@ -7,14 +7,30 @@ import uuid
 import datetime
 import jwt
 import hashlib
+import re
+
+from numpy import True_
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'my_name')
 
+def validate_email(email):
+    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if re.match(pattern, email):
+        return True
+    else:
+        return False
+def validate_password(password):
+    if len(password) < 8 or len(password) > 20:
+        return False
+    else:
+        return True
+
+
 def generate_token(id):
     payload = {
         'user_id' : id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expiration time
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1) 
     }
     token = jwt.encode(payload, app.secret_key, algorithm='HS256')
     return token
@@ -65,21 +81,26 @@ def user_register():
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
-    try:
-        hashed_password = hash_password(password)
-        user_id = str(uuid.uuid4())
+    
+    if not (validate_email(email) == True and validate_password(password)== True):
+            return "",406
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        conn.start_transaction()
-        cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
-        conn.commit()
-        conn.close()
-        
-        return jsonify({"id": user_id}), 201
-    except Exception :
-        conn.rollback()
-        return 500
+    else:
+        try:
+            hashed_password = hash_password(password)
+            user_id = str(uuid.uuid4())
+            
+            conn = get_connection()
+            cursor = conn.cursor()
+            conn.start_transaction()
+            cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
+            conn.commit()
+            conn.close()
+            
+            return jsonify({"id": user_id}), 201
+        except Exception :
+            conn.rollback()
+            return 500
     
 @app.route("/login", methods=['POST'])
 def login():
