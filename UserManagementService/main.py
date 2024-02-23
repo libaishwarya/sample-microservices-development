@@ -19,10 +19,30 @@ def generate_token(id):
     token = jwt.encode(payload, app.secret_key, algorithm='HS256')
     return token
 
-def validate_tokenID(id):
+def token_required(func):
+    @wraps(func)
+    def decorated_function(*args, **kwargs):
+        if 'Authorization' not in request.headers:
+            return jsonify({"message": "Missing token"}), 401
 
-app.secret_key = os.environ.get('SECRET_KEY')
+        token_parts = request.headers['Authorization'].split()
+        if len(token_parts) != 2 or token_parts[0].lower() != 'bearer':
+            return jsonify({"message": "Invalid token format"}), 401
 
+        token = token_parts[1]
+        try:
+            decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+            kwargs['id'] = decoded_token['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({"message": "Expired token"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"message": "Invalid token"}), 401
+
+        return func(*args, **kwargs)
+
+    return decorated_function
+
+        
 db_config = {
     'host': os.environ.get('DATABASE_HOST', 'localhost'),
     'user': os.environ.get('DATABASE_USER', 'root'),
@@ -55,10 +75,11 @@ def user_register():
         cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
         conn.commit()
         conn.close()
+        
         return jsonify({"id": user_id}), 201
     except Exception :
         conn.rollback()
-        return jsonify({'message': 'Internal Server Error'}), 500
+        return 500
     
 @app.route("/login", methods=['POST'])
 def login():
@@ -79,12 +100,11 @@ def login():
                 return "",401
             token = generate_token(user[0])
             return jsonify({'token': token, 'id': user[0]}), 200
-    return jsonify({'message': 'Internal Server Error'}), 500
+    return 500
 
 @app.route("/users/<string:id>", methods=['GET'])
 @token_required
-def user_view(id):  
-    if request.method == 'GET':     
+def user_view(id):      
         conn = get_connection()
         cursor = conn.cursor()
         conn.start_transaction()
@@ -97,12 +117,10 @@ def user_view(id):
                                 "email": user[2],
                                 }
         return jsonify(user_dict), 200
-    return jsonify({'message': 'Internal Server Error'}), 500
 
 @app.route("/users/<string:id>", methods=['PUT'])
 @token_required
-def user_update(id):
-    if request.method == 'PUT':
+def user_update(id):         
             data = request.json
             name = data.get('name')
             email = data.get('email')
@@ -113,20 +131,18 @@ def user_update(id):
             conn.commit()
             conn.close()
             return jsonify({"message": "User updated successfully"}), 200
-    return jsonify({'message': 'Internal Server Error'}), 500
     
+
 @app.route("/users/<string:id>", methods=['DELETE'])
 @token_required
 def user_delete(id):
-    if request.method == 'DELETE':
-        conn = get_connection()
-        cursor = conn.cursor()
-        conn.start_transaction()
-        cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "User deleted successfully"}), 200
-    return jsonify({'message': 'Internal Server Error'}), 500
+            conn = get_connection()
+            cursor = conn.cursor()
+            conn.start_transaction()
+            cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
+            conn.commit()
+            conn.close()
+            return jsonify({"message": "User deleted successfully"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
