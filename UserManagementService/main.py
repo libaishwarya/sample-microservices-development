@@ -1,4 +1,4 @@
-from textwrap import wrap
+from functools import wraps
 from flask import Flask, jsonify, request
 import os
 import mysql.connector
@@ -55,11 +55,10 @@ def user_register():
         cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
         conn.commit()
         conn.close()
-        
         return jsonify({"id": user_id}), 201
     except Exception :
         conn.rollback()
-        return 500
+        return jsonify({'message': 'Internal Server Error'}), 500
     
 @app.route("/login", methods=['POST'])
 def login():
@@ -80,33 +79,30 @@ def login():
                 return "",401
             token = generate_token(user[0])
             return jsonify({'token': token, 'id': user[0]}), 200
-    return 500
-
-@app.route("/users/<string:id>", methods=['GET'])
-def user_view(id):
-    if request.method == 'GET': 
-        if validate_tokenID(id)  :
-        
-            conn = get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction()
-            cursor.execute('SELECT * FROM user_management WHERE id = %s ', (id,))
-            user = cursor.fetchone()
-            conn.close()
-            user_dict = {
-                            "id": user[0],
-                            "name": user[1],
-                            "email": user[2],
-                            }
-            return jsonify(user_dict), 200
     return jsonify({'message': 'Internal Server Error'}), 500
 
+@app.route("/users/<string:id>", methods=['GET'])
+@token_required
+def user_view(id):  
+    if request.method == 'GET':     
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction()
+        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (id,))
+        user = cursor.fetchone()
+        conn.close()
+        user_dict = {
+                                "id": user[0],
+                                "name": user[1],
+                                "email": user[2],
+                                }
+        return jsonify(user_dict), 200
+    return jsonify({'message': 'Internal Server Error'}), 500
 
 @app.route("/users/<string:id>", methods=['PUT'])
+@token_required
 def user_update(id):
     if request.method == 'PUT':
-        if validate_tokenID(id)  :
-            
             data = request.json
             name = data.get('name')
             email = data.get('email')
@@ -117,22 +113,20 @@ def user_update(id):
             conn.commit()
             conn.close()
             return jsonify({"message": "User updated successfully"}), 200
-    
-    return "", 500
+    return jsonify({'message': 'Internal Server Error'}), 500
     
 @app.route("/users/<string:id>", methods=['DELETE'])
+@token_required
 def user_delete(id):
     if request.method == 'DELETE':
-        if validate_tokenID(id):
-            conn = get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction()
-            cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
-            conn.commit()
-            conn.close()
-            return jsonify({"message": "User deleted successfully"}), 200
-
-        return "", 500
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction()
+        cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "User deleted successfully"}), 200
+    return jsonify({'message': 'Internal Server Error'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
