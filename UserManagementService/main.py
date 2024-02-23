@@ -1,3 +1,4 @@
+from textwrap import wrap
 from flask import Flask, jsonify, request
 import os
 import mysql.connector
@@ -18,6 +19,7 @@ def generate_token(id):
     token = jwt.encode(payload, app.secret_key, algorithm='HS256')
     return token
 
+def validate_tokenID(id):
 
 app.secret_key = os.environ.get('SECRET_KEY')
 
@@ -38,7 +40,7 @@ def check_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
 
 @app.route("/register", methods=['POST'])
-def user_register():
+def user_register(): 
     data = request.json
     name = data.get('name')
     email = data.get('email')
@@ -72,7 +74,7 @@ def login():
             conn.start_transaction()
             cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
             user = cursor.fetchone()
-            conn.commit()
+            # conn.commit()
             conn.close()
             if  user is None:
                 return "",401
@@ -80,60 +82,30 @@ def login():
             return jsonify({'token': token, 'id': user[0]}), 200
     return 500
 
-@app.route("/users", methods=['GET'])
-def user_view():
-    if request.method == 'GET':
+@app.route("/users/<string:id>", methods=['GET'])
+def user_view(id):
+    if request.method == 'GET': 
+        if validate_tokenID(id)  :
         
-        if 'Authorization' not in request.headers:
-            return "", 401
-            
-        token_parts = request.headers['Authorization'].split()
-        if len(token_parts) == 2:
-            token_type, token = token_parts
-        if not token:
-            return jsonify({'message': 'Token is missing'}), 401        
-        try: 
-            decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])   
-            user_id = decoded_token['user_id']
-
             conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction()
-            cursor.execute('SELECT * FROM user_management WHERE id = %s ', (user_id,))
+            cursor.execute('SELECT * FROM user_management WHERE id = %s ', (id,))
             user = cursor.fetchone()
             conn.close()
-            if user:
-                    user_dict = {
-                        "id": user[0],
-                        "name": user[1],
-                        "email": user[2],
-                    }
-                    return jsonify(user_dict), 200
-            else:
-                    return jsonify({"error": "User not found"}), 404
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token is expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Invalid token'}), 403
+            user_dict = {
+                            "id": user[0],
+                            "name": user[1],
+                            "email": user[2],
+                            }
+            return jsonify(user_dict), 200
     return jsonify({'message': 'Internal Server Error'}), 500
 
 
-@app.route("/users", methods=['PUT'])
-def user_update():
+@app.route("/users/<string:id>", methods=['PUT'])
+def user_update(id):
     if request.method == 'PUT':
-        
-        if 'Authorization' not in request.headers:
-            return "",401
-        
-        token_parts = request.headers['Authorization'].split()
-        if len(token_parts) == 2:
-            token_type, token = token_parts
-        else:
-            return jsonify({'message': 'Token is missing'}), 401
-            
-        try:
-            decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])
-            user_id = decoded_token['user_id']
+        if validate_tokenID(id)  :
             
             data = request.json
             name = data.get('name')
@@ -141,43 +113,26 @@ def user_update():
             conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction()
-            cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, user_id))
+            cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, id))
             conn.commit()
             conn.close()
             return jsonify({"message": "User updated successfully"}), 200
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token is expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Invalid token'}), 403
     
     return "", 500
     
-@app.route("/users", methods=['DELETE'])
-def user_delete():
+@app.route("/users/<string:id>", methods=['DELETE'])
+def user_delete(id):
     if request.method == 'DELETE':
-        if 'Authorization' not in request.headers():
-            return "", 401
-        
-        token_parts = request.headers['Authorization'].split()
-        if len(token_parts) == 2:
-            token_type, token = token_parts
-        if not token:
-            return jsonify({'message': 'Token is missing'}), 401
-        
-        try:
-            decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])   
-            user_id = decoded_token['user_id']
-            
+        if validate_tokenID(id):
             conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction()
-            cursor.execute('DELETE FROM user_management WHERE id = %s', (user_id,))
+            cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
             conn.commit()
             conn.close()
             return jsonify({"message": "User deleted successfully"}), 200
-        except Exception :
-            conn.rollback()
-            return 500
+
+        return "", 500
 
 if __name__ == '__main__':
     app.run(debug=True)
