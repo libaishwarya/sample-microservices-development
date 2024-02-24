@@ -9,8 +9,6 @@ import jwt
 import hashlib
 import re
 
-from numpy import True_
-
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'my_name')
 
@@ -20,13 +18,13 @@ def validate_email(email):
         return True
     else:
         return False
+    
 def validate_password(password):
     if len(password) < 8 or len(password) > 20:
         return False
     else:
         return True
-
-
+    
 def generate_token(id):
     payload = {
         'user_id' : id,
@@ -40,25 +38,23 @@ def token_required(func):
     def decorated_function(*args, **kwargs):
         if 'Authorization' not in request.headers:
             return jsonify({"message": "Missing token"}), 401
-
         token_parts = request.headers['Authorization'].split()
         if len(token_parts) != 2 or token_parts[0].lower() != 'bearer':
             return jsonify({"message": "Invalid token format"}), 401
-
         token = token_parts[1]
         try:
             decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])
-            kwargs['id'] = decoded_token['user_id']
+            kwargs['ids'] = decoded_token['user_id']  
+            
+            if 'ids' in kwargs and kwargs['ids'] != decoded_token['user_id']:
+                return jsonify({"message": "Mismatched user ID"}), 401
         except jwt.ExpiredSignatureError:
             return jsonify({"message": "Expired token"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"message": "Invalid token"}), 401
-
         return func(*args, **kwargs)
-
     return decorated_function
 
-        
 db_config = {
     'host': os.environ.get('DATABASE_HOST', 'localhost'),
     'user': os.environ.get('DATABASE_USER', 'root'),
@@ -81,10 +77,8 @@ def user_register():
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
-    
     if not (validate_email(email) == True and validate_password(password)== True):
-            return "",406
-        
+            return "",400
     else:
         try:
             hashed_password = hash_password(password)
@@ -92,11 +86,10 @@ def user_register():
             
             conn = get_connection()
             cursor = conn.cursor()
-            conn.start_transaction()
+            conn.start_transaction(readonly=False)
             cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
             conn.commit()
             conn.close()
-            
             return jsonify({"id": user_id}), 201
         except Exception :
             conn.rollback()
@@ -112,7 +105,7 @@ def login():
     if data:
             conn = get_connection()
             cursor = conn.cursor()
-            conn.start_transaction()
+            conn.start_transaction(readonly=True)
             cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
             user = cursor.fetchone()
             # conn.commit()
@@ -123,44 +116,43 @@ def login():
             return jsonify({'token': token, 'id': user[0]}), 200
     return 500
 
-@app.route("/users/<string:id>", methods=['GET'])
+@app.route("/users/<string:ids>", methods=['GET'])
 @token_required
-def user_view(id):      
+def user_view(ids):      
         conn = get_connection()
         cursor = conn.cursor()
-        conn.start_transaction()
-        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (id,))
+        conn.start_transaction(readonly=True)
+        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
         user = cursor.fetchone()
         conn.close()
         user_dict = {
-                                "id": user[0],
+                                "ids": user[0],
                                 "name": user[1],
                                 "email": user[2],
                                 }
         return jsonify(user_dict), 200
 
-@app.route("/users/<string:id>", methods=['PUT'])
+@app.route("/users/<string:ids>", methods=['PUT'])
 @token_required
-def user_update(id):         
+def user_update(ids):         
             data = request.json
             name = data.get('name')
             email = data.get('email')
             conn = get_connection()
             cursor = conn.cursor()
-            conn.start_transaction()
-            cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, id))
+            conn.start_transaction(readonly=False)
+            cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, ids))
             conn.commit()
             conn.close()
             return jsonify({"message": "User updated successfully"}), 200
     
-
-@app.route("/users/<string:id>", methods=['DELETE'])
+@app.route("/users/<string:ids>", methods=['DELETE'])
 @token_required
-def user_delete(id):
+def user_delete(ids):
             conn = get_connection()
             cursor = conn.cursor()
-            conn.start_transaction()
-            cursor.execute('DELETE FROM user_management WHERE id = %s', (id,))
+            conn.start_transaction(readonly=False)
+            cursor.execute('DELETE FROM user_management WHERE id = %s', (ids,))
             conn.commit()
             conn.close()
             return jsonify({"message": "User deleted successfully"}), 200
