@@ -16,14 +16,14 @@ def validate_email(email):
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     if re.match(pattern, email):
         return True
-    else:
-        return False
+    
+    return False
     
 def validate_password(password):
     if len(password) < 8 or len(password) > 20:
         return False
-    else:
-        return True
+    
+    return True
     
 def generate_token(id):
     payload = {
@@ -44,7 +44,6 @@ def token_required(func):
         token = token_parts[1]
         try:
             decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])
-            kwargs['ids'] = decoded_token['user_id']  
             
             if 'ids' in kwargs and kwargs['ids'] != decoded_token['user_id']:
                 return jsonify({"message": "Mismatched user ID"}), 401
@@ -108,7 +107,7 @@ def login():
             conn.start_transaction(readonly=True)
             cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
             user = cursor.fetchone()
-            # conn.commit()
+            conn.commit()
             conn.close()
             if  user is None:
                 return "",401
