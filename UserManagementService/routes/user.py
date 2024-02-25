@@ -1,17 +1,17 @@
-from .. import app
 from functools import wraps
 from flask import Flask, jsonify, request
-import os
-import mysql.connector
 import bcrypt
-import uuid
 import datetime
 import jwt
-import hashlib
 import re
+from manager import user
+from flask import Blueprint
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+
+
+app = Blueprint('users_app', __name__)
+
+
 
 def check_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
@@ -67,21 +67,8 @@ def user_register():
     password = data.get('password')
     if not (validate_email(email) == True and validate_password(password)== True):
             return "",400
-    else:
-        try:
-            hashed_password = hash_password(password)
-            user_id = str(uuid.uuid4())
-            
-            conn = app.get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction(readonly=False)
-            cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
-            conn.commit()
-            conn.close()
-            return jsonify({"id": user_id}), 201
-        except Exception :
-            conn.rollback()
-            return 500
+
+    return user.register_user(name, email, password)
     
 @app.route("/login", methods=['POST'])
 def login():
@@ -91,7 +78,7 @@ def login():
     if not data or 'email' not in data or 'password' not in data:
         return jsonify({'message': 'Invalid credentials'}), 401
     if data:
-            conn = app.get_connection()
+            conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction(readonly=True)
             cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
@@ -107,7 +94,7 @@ def login():
 @app.route("/users/<string:ids>", methods=['GET'])
 @token_required
 def user_view(ids):      
-        conn = app.get_connection()
+        conn = get_connection()
         cursor = conn.cursor()
         conn.start_transaction(readonly=True)
         cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
@@ -126,7 +113,7 @@ def user_update(ids):
             data = request.json
             name = data.get('name')
             email = data.get('email')
-            conn = app.get_connection()
+            conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction(readonly=False)
             cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, ids))
@@ -137,7 +124,7 @@ def user_update(ids):
 @app.route("/users/<string:ids>", methods=['DELETE'])
 @token_required
 def user_delete(ids):
-            conn = app.get_connection()
+            conn = get_connection()
             cursor = conn.cursor()
             conn.start_transaction(readonly=False)
             cursor.execute('DELETE FROM user_management WHERE id = %s', (ids,))
