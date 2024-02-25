@@ -6,16 +6,14 @@ import jwt
 import re
 from manager import user
 from flask import Blueprint
+import os
 
-
+from store.utils import get_connection
 
 app = Blueprint('users_app', __name__)
 
-
-
 def check_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
-
 
 def validate_email(email):
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
@@ -30,12 +28,13 @@ def validate_password(password):
     
     return True
     
-def generate_token(id):
+def generate_token(ids):
     payload = {
-        'user_id' : id,
+        'user_id' : ids,
         'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1) 
     }
-    token = jwt.encode(payload, app.secret_key, algorithm='HS256')
+    token = jwt.encode(payload, os.environ.get('SECRET_KEY', 'my_name'), algorithm='HS256')
+    
     return token
 
 def token_required(func):
@@ -48,7 +47,7 @@ def token_required(func):
             return jsonify({"message": "Invalid token format"}), 401
         token = token_parts[1]
         try:
-            decoded_token = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+            decoded_token = jwt.decode(token, os.environ.get('SECRET_KEY', 'my_name'), algorithms=['HS256'])
             
             if 'ids' in kwargs and kwargs['ids'] != decoded_token['user_id']:
                 return jsonify({"message": "Mismatched user ID"}), 401
@@ -57,6 +56,7 @@ def token_required(func):
         except jwt.InvalidTokenError:
             return jsonify({"message": "Invalid token"}), 401
         return func(*args, **kwargs)
+    
     return decorated_function
 
 @app.route("/register", methods=['POST'])
@@ -77,57 +77,24 @@ def login():
     password = data['password']
     if not data or 'email' not in data or 'password' not in data:
         return jsonify({'message': 'Invalid credentials'}), 401
-    if data:
-            conn = get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction(readonly=True)
-            cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hash_password(password)))
-            user = cursor.fetchone()
-            conn.commit()
-            conn.close()
-            if  user is None:
-                return "",401
-            token = generate_token(user[0])
-            return jsonify({'token': token, 'id': user[0]}), 200
-    return 500
+
+    return user.login_user(email, password)
 
 @app.route("/users/<string:ids>", methods=['GET'])
 @token_required
-def user_view(ids):      
-        conn = get_connection()
-        cursor = conn.cursor()
-        conn.start_transaction(readonly=True)
-        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
-        user = cursor.fetchone()
-        conn.close()
-        user_dict = {
-                                "ids": user[0],
-                                "name": user[1],
-                                "email": user[2],
-                                }
-        return jsonify(user_dict), 200
+def user_view(ids):     
+    return user.view_user(ids)
 
 @app.route("/users/<string:ids>", methods=['PUT'])
 @token_required
 def user_update(ids):         
-            data = request.json
-            name = data.get('name')
-            email = data.get('email')
-            conn = get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction(readonly=False)
-            cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, ids))
-            conn.commit()
-            conn.close()
-            return jsonify({"message": "User updated successfully"}), 200
+    data = request.json
+    name = data.get('name')
+    email = data.get('email')
+    return user.update_user(name, email, ids)
+    
     
 @app.route("/users/<string:ids>", methods=['DELETE'])
 @token_required
 def user_delete(ids):
-            conn = get_connection()
-            cursor = conn.cursor()
-            conn.start_transaction(readonly=False)
-            cursor.execute('DELETE FROM user_management WHERE id = %s', (ids,))
-            conn.commit()
-            conn.close()
-            return jsonify({"message": "User deleted successfully"}), 200
+    return user.delete_user(ids)

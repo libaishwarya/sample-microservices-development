@@ -1,4 +1,7 @@
-from .utils import get_connection
+# from .utils import get_connection
+from store.utils import get_connection
+import jsonify
+
 
 def insert_user(user_id, name, email, hashed_password):
     try:
@@ -11,3 +14,58 @@ def insert_user(user_id, name, email, hashed_password):
 
     except Exception as err:
         return err
+    
+def get_user(email, hashed_password):
+    try: 
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction(readonly=True)
+        cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hashed_password))
+        user = cursor.fetchone()
+        # conn.commit()
+        # cursor.close()
+        
+        return user[0]
+    except Exception as err:
+        return err
+    
+def read_user(ids):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction(readonly=True)
+        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
+        user = cursor.fetchone()
+        conn.close()
+        user_dict = {
+                                "ids": user[0],
+                                "name": user[1],
+                                "email": user[2],
+                                }
+        return user_dict
+    except Exception as err:
+        return err
+    
+def user_update(name, email, ids):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction(readonly=False)
+        cursor.execute('UPDATE user_management SET name = %s, email = %s WHERE id = %s', (name, email, ids))
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        raise e
+
+def user_delete(ids):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        conn.start_transaction(readonly=False)
+        cursor.execute('DELETE FROM user_management WHERE id = %s', (ids,))
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        raise e
