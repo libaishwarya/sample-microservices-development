@@ -56,9 +56,7 @@ def token_required(func):
             # Check if user ID in token matches the one in URL parameters
             if 'ids' in kwargs:
                 if kwargs["ids"] != decoded_token["user_id"]:
-                    if decoded_token["is_admin"] == True:
-                        return func(*args, **kwargs)
-                    else:
+                    if decoded_token["is_admin"] == False:
                         return jsonify({"message": "Mismatched user ID"}), 401
             
             # Call the function if user ID matches or if there's no user ID in the route
