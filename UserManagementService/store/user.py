@@ -3,12 +3,12 @@ from store.utils import get_connection
 import jsonify
 
 
-def insert_user(user_id, name, email, hashed_password):
+def insert_user(user_id, name, email, hashed_password, is_admin = False):
     try:
         conn = get_connection()
         cursor = conn.cursor()
         conn.start_transaction(readonly=False)
-        cursor.execute('INSERT INTO user_management (id, name, email, password) VALUES (%s, %s, %s, %s)', (user_id, name, email, hashed_password))
+        cursor.execute('INSERT INTO user_management (id, name, email, password, is_admin) VALUES (%s, %s, %s, %s, %s)', (user_id, name, email, hashed_password, is_admin))
         conn.commit()
         conn.close()
 
@@ -20,31 +20,28 @@ def get_user(email, hashed_password):
         conn = get_connection()
         cursor = conn.cursor()
         conn.start_transaction(readonly=True)
-        cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s', (email, hashed_password))
+        cursor.execute('SELECT * FROM user_management WHERE email = %s AND password = %s ', (email, hashed_password))
         user = cursor.fetchone()
-        # conn.commit()
-        # cursor.close()
-        
-        return user[0]
+        return user
     except Exception as err:
         return err
     
 def read_user(ids):
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        conn.start_transaction(readonly=True)
-        cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
-        user = cursor.fetchone()
-        conn.close()
-        user_dict = {
-                                "ids": user[0],
-                                "name": user[1],
-                                "email": user[2],
-                                }
-        return user_dict
-    except Exception as err:
-        return err
+     try:
+         conn = get_connection()
+         cursor = conn.cursor()
+         conn.start_transaction(readonly=True)
+         cursor.execute('SELECT * FROM user_management WHERE id = %s ', (ids,))
+         user = cursor.fetchone()
+         conn.close()
+         user_dict = {
+                                 "ids": user[0],
+                                 "name": user[1],
+                                 "email": user[2],
+                                 }
+         return user_dict
+     except Exception as err:
+         return err
     
 def user_update(name, email, ids):
     try:
